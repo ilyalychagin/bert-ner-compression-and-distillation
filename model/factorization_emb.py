@@ -7,10 +7,10 @@ class FactorizationEmbedding(nn.Module):
         if original_matrix is not None:
             U, E, Vt = torch.linalg.svd(original_matrix.detach(), full_matrices=False)
             A = (U[:, :factor_dim] * E[:factor_dim])
-            B = Vt[:factor_dim].clone()
+            B = Vt[:factor_dim].clone() 
         else:
-            A = torch.empty(vocab_size, factor_dim)
-            B = torch.empty(factor_dim, hidden_size)
+            A = torch.randn(vocab_size, factor_dim) * 0.02
+            B = torch.randn(factor_dim, hidden_size) / factor_dim**0.5
         
         self.A = nn.Embedding.from_pretrained(
             A,

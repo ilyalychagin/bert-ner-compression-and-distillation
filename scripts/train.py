@@ -62,6 +62,11 @@ def train(
     model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
     checkpoint_dir=None,
     val_every_n_steps=25000,
+    teacher=None,
+    T=1,
+    alpha_soft=1,
+    alpha_hard=1,
+    scheduler_per_step=False
 ):
 
     train_losses = []
@@ -85,7 +90,34 @@ def train(
         for batch_index, batch in enumerate(progress, start=1):
             batch = {key: value.to(device) for key, value in batch.items()}
             output = model(**batch)
-            loss = criterion(output.logits.transpose(1, 2), batch["labels"])
+            distillation_losses: dict[str, torch.Tensor] = {}
+            if teacher:
+                # teacher.eval() не забыть
+
+                keep = batch["labels"] != -100
+
+                with torch.no_grad():
+                    teacher_logits = teacher(**batch).logits
+
+                student_logits = output.logits
+
+                soft_labels = torch.softmax(teacher_logits[keep]/T, dim=-1)
+                student_log_probs = torch.log_softmax(student_logits[keep] / T, dim=-1)
+
+                loss_teacher = torch.nn.KLDivLoss(reduction="batchmean")(student_log_probs, soft_labels)
+                loss_hard = criterion(student_logits.transpose(1, 2), batch["labels"])
+                loss = alpha_soft * (T**2) * loss_teacher + alpha_hard * loss_hard
+                distillation_losses = {
+                    "loss_teacher": loss_teacher,
+                    "loss_hard": loss_hard,
+                }
+            else:
+                loss = criterion(output.logits.transpose(1, 2), batch["labels"])
+                distillation_losses = {
+                    "loss_teacher": loss,
+                    "loss_hard": loss,
+                }
+
             loss.backward()
 
             loss_value = loss.item()
@@ -97,6 +129,9 @@ def train(
             optimizer.step()
             optimizer.zero_grad()
 
+            if scheduler_per_step:
+                scheduler.step()
+
             if global_step % val_every_n_steps == 0 or (
                 batch_index == len(train_loader) and epoch + 1 == epochs
             ):
@@ -107,7 +142,9 @@ def train(
 
                 print('F1-score:', val_metric)
 
-                scheduler.step(val_loss)
+                if scheduler_per_step == False:
+                    scheduler.step(val_loss)
+                    
                 is_best = val_metric > best_val_f1
                 if is_best:
                     best_val_f1 = val_metric
@@ -121,6 +158,8 @@ def train(
                 avg_loss=f"{total_loss / total_tokens:.4f}",
                 lr=f"{optimizer.param_groups[0]['lr']:.2e}",
                 refresh=False,
+                loss_teacher=f"{distillation_losses['loss_teacher']:.4f}" if teacher else "-",
+                loss_hard=f"{distillation_losses['loss_hard']:.4f}",
             )
 
         epoch_loss = total_loss / total_tokens

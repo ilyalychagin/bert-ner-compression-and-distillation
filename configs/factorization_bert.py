@@ -13,7 +13,7 @@ class Config:
     wd: float = 0.01
     sheduler_factor: float = 0.5
     sheduler_patience: int = 1
-    num_epochs: int = 3
+    num_epochs: int = 10
 
     checkpoint_dir: Path = Path("checkpoints/fine-tune_factorized_bert")
-    checkpoint_teacher_dir: Path = Path("checkpoints/fine-tune_bert_best")
+    checkpoint_teacher_dir: Path = Path("checkpoints/fine-tune_bert_lr5e-5")
