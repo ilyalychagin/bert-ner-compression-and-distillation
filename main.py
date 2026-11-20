@@ -97,11 +97,12 @@ def main():
         val_every_n_steps=len(train_loader),
     )
 
-    checkpoint_dir = "checkpoints/fine-tune_bert"
-    model.save_pretrained(checkpoint_dir)
-    tokenizer.save_pretrained(checkpoint_dir)
+    best_model = AutoModelForTokenClassification.from_pretrained(cfg.checkpoint_dir).to(device)
 
-    test_loss, test_f1 = validation(model, test_loader, criterion, device)
+    val_loss, val_f1 = validation(best_model, val_loader, criterion, device)
+    test_loss, test_f1 = validation(best_model, test_loader, criterion, device)
+    print('Results for best checkpoint:')
+    print(f"Val loss: {val_loss}, Val F1: {val_f1}")
     print(f"Test loss: {test_loss}, Test F1: {test_f1}")
 
 if __name__ == "__main__":

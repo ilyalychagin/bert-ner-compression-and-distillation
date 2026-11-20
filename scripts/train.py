@@ -56,7 +56,7 @@ def validation(model, val_loader, criterion, device, metric=f1_score, epoch=None
         )
 
     
-    return total_loss / total_tokens, metric(all_predicted_labels, all_true_labels)
+    return total_loss / total_tokens, metric(all_true_labels, all_predicted_labels)
 
 def train(
     model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
@@ -69,7 +69,7 @@ def train(
     val_metrics = []
     global_step = 0
     start_epoch = 0
-    best_val_f1 = -100
+    best_val_f1 = float("-inf")
 
     for epoch in range(start_epoch, epochs):
         model.train()
@@ -108,7 +108,7 @@ def train(
                 print('F1-score:', val_metric)
 
                 scheduler.step(val_loss)
-                is_best = val_metric < best_val_f1
+                is_best = val_metric > best_val_f1
                 if is_best:
                     best_val_f1 = val_metric
 
@@ -124,6 +124,7 @@ def train(
             )
 
         epoch_loss = total_loss / total_tokens
+        train_losses.append(epoсh_loss)
         tqdm.write(
             f"Epoch {epoch + 1}/{epochs}: train_loss={epoch_loss:.4f}"
         )
