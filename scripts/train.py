@@ -124,7 +124,7 @@ def train(
             )
 
         epoch_loss = total_loss / total_tokens
-        train_losses.append(epoсh_loss)
+        train_losses.append(epoch_loss)
         tqdm.write(
             f"Epoch {epoch + 1}/{epochs}: train_loss={epoch_loss:.4f}"
         )
