@@ -1,7 +1,8 @@
 import torch
-from pathlib import Path
-from tqdm.auto import tqdm
 from seqeval.metrics import f1_score
+from tqdm.auto import tqdm
+
+from utils.utils import save_checkpoint
 
 
 @torch.no_grad()
@@ -55,10 +56,11 @@ def validation(model, val_loader, criterion, device, metric=f1_score, epoch=None
         )
 
     
-    return total_loss / total_tokens, metric(all_true_labels, all_predicted_labels)
+    return total_loss / total_tokens, metric(all_predicted_labels, all_true_labels)
 
 def train(
     model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
+    checkpoint_dir=None,
     val_every_n_steps=25000,
 ):
 
@@ -67,7 +69,7 @@ def train(
     val_metrics = []
     global_step = 0
     start_epoch = 0
-    best_val_loss = float("inf")
+    best_val_f1 = -100
 
     for epoch in range(start_epoch, epochs):
         model.train()
@@ -102,11 +104,17 @@ def train(
                 model.train()
                 val_losses.append(val_loss)
                 val_metrics.append(val_metric)
+
                 print('F1-score:', val_metric)
+
                 scheduler.step(val_loss)
-                is_best = val_loss < best_val_loss
+                is_best = val_metric < best_val_f1
                 if is_best:
-                    best_val_loss = val_loss
+                    best_val_f1 = val_metric
+
+                    if checkpoint_dir is not None:
+                        save_checkpoint(model, checkpoint_dir)
+
 
             progress.set_postfix(
                 loss=f"{loss_value:.4f}",
@@ -116,7 +124,6 @@ def train(
             )
 
         epoch_loss = total_loss / total_tokens
-        train_losses.append(epoch_loss)
         tqdm.write(
             f"Epoch {epoch + 1}/{epochs}: train_loss={epoch_loss:.4f}"
         )

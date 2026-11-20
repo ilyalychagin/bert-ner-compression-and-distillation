@@ -1,89 +1,108 @@
-from dataset import get_dataset, get_tokenized_dataset
-from tokenization import get_tokenizer
-from collate import collate
-from seqeval.metrics import f1_score
+import argparse
 from functools import partial
+from pathlib import Path
+from runpy import run_path
+
+import torch
 from torch.utils.data import DataLoader
 from transformers import AutoModelForTokenClassification
-import torch
-from train import train, validation
 
-label_names = ['O', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC']
-
-model = AutoModelForTokenClassification.from_pretrained('bert-base-cased', num_labels=len(label_names))
-
-print('Число параметров:', sum(p.numel() for p in model.parameters()))
-
-tokenizer = get_tokenizer()
-dataset = get_tokenized_dataset(tokenizer)
-
-train_loader = DataLoader(
-    dataset['train'],
-    batch_size=64,
-    shuffle=True,
-    collate_fn=partial(
-        collate, 
-        trunc_len=512, 
-        padding_value=tokenizer.pad_token_id,
-        include_labels=True
-    ) 
-)
-
-val_loader = DataLoader(
-    dataset['validation'],
-    batch_size=64,
-    shuffle=False,
-    collate_fn=partial(
-        collate,
-        trunc_len=512,
-        padding_value=tokenizer.pad_token_id,
-        include_labels=True,
-    ),
-)
-
-test_loader = DataLoader(
-    dataset['test'],
-    batch_size=64,
-    shuffle=False,
-    collate_fn=partial(
-        collate, 
-        trunc_len=512, 
-        padding_value=tokenizer.pad_token_id,
-        include_labels=True
-    ) 
-)
+from dataset.collate import collate
+from dataset.dataset import get_tokenized_dataset
+from dataset.tokenization import get_tokenizer
+from scripts.train import train, validation
+from utils.utils import set_seed
 
 
-device = torch.device(
-    'cuda' if torch.cuda.is_available() else 'cpu'
-)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=Path, required=True)
+    args = parser.parse_args()
+    config_path = args.config.expanduser().resolve()
+    cfg = run_path(str(config_path))["Config"]()
 
-model.to(device)
+    label_names = ['O', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC']
 
-criterion = torch.nn.CrossEntropyLoss(ignore_index=-100)
-optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5, weight_decay=0.01)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer,
-    mode="min",
-    factor=0.5,
-    patience=1,
-)
+    set_seed(cfg.seed)
 
-train_losses, val_losses, val_f1_scores = train(
-    model=model,
-    train_loader=train_loader,
-    val_loader=val_loader,
-    criterion=criterion,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    epochs=3,
-    device=device,
-    val_every_n_steps=len(train_loader),
-)
+    model = AutoModelForTokenClassification.from_pretrained('bert-base-cased', num_labels=len(label_names))
 
-checkpoint_dir = "checkpoints/fine-tune_bert"
-model.save_pretrained(checkpoint_dir)
-tokenizer.save_pretrained(checkpoint_dir)
+    print('Число параметров:', sum(p.numel() for p in model.parameters()))
 
-test_loss, test_f1 = validation(model, test_loader, criterion, device)
-print(f"Test loss: {test_loss}, Test F1: {test_f1}")
+    tokenizer = get_tokenizer()
+    dataset = get_tokenized_dataset(tokenizer)
+
+    train_loader = DataLoader(
+        dataset['train'],
+        batch_size=cfg.batch_size_train,
+        shuffle=True,
+        collate_fn=partial(
+            collate, 
+            trunc_len=cfg.trunc_len, 
+            padding_value=tokenizer.pad_token_id,
+            include_labels=True
+        ) 
+    )
+
+    val_loader = DataLoader(
+        dataset['validation'],
+        batch_size=cfg.batch_size_val,
+        shuffle=False,
+        collate_fn=partial(
+            collate,
+            trunc_len=cfg.trunc_len,
+            padding_value=tokenizer.pad_token_id,
+            include_labels=True,
+        ),
+    )
+
+    test_loader = DataLoader(
+        dataset['test'],
+        batch_size=cfg.batch_size_test,
+        shuffle=False,
+        collate_fn=partial(
+            collate, 
+            trunc_len=cfg.trunc_len, 
+            padding_value=tokenizer.pad_token_id,
+            include_labels=True
+        ) 
+    )
+
+
+    device = torch.device(
+        'cuda' if torch.cuda.is_available() else 'cpu'
+    )
+
+    model.to(device)
+
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.wd)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",
+        factor=cfg.sheduler_factor,
+        patience=cfg.sheduler_patience,
+    )
+
+    train_losses, val_losses, val_f1_scores = train(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        epochs=cfg.num_epochs,
+        device=device,
+        checkpoint_dir=cfg.checkpoint_dir,
+        val_every_n_steps=len(train_loader),
+    )
+
+    checkpoint_dir = "checkpoints/fine-tune_bert"
+    model.save_pretrained(checkpoint_dir)
+    tokenizer.save_pretrained(checkpoint_dir)
+
+    test_loss, test_f1 = validation(model, test_loader, criterion, device)
+    print(f"Test loss: {test_loss}, Test F1: {test_f1}")
+
+if __name__ == "__main__":
+    main()

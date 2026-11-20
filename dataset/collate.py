@@ -1,6 +1,5 @@
-from torch.nn.utils.rnn import pad_sequence
-from functools import partial
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 
 def collate(batch, trunc_len=None, padding_value=0, include_labels=True):

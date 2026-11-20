@@ -1,5 +1,6 @@
 from datasets import load_dataset
-from tokenization import tokenize_dataset
+
+from .tokenization import tokenize_dataset
 
 def get_dataset():
     dataset = load_dataset("ashaba1in/conll2003")
