@@ -1,6 +1,8 @@
 from transformers import BertForTokenClassification
 from .factorization_emb import FactorizationEmbedding
 from copy import deepcopy
+from transformers.models.bert.modeling_bert import BertEncoder
+from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 
 class FactorizedBertForTokenClassification(BertForTokenClassification):
     def __init__(self, config):
@@ -40,5 +42,19 @@ class FactorizedBertForTokenClassification(BertForTokenClassification):
         model.load_state_dict(weights)
 
         return model
+
+class SharedBertEncoder(BertEncoder):
+
+    def forward(self, hidden_states, attention_mask=None, **kwargs):
+        for depth in range(self.config.num_shared_steps):
+            hidden_states = self.layer[0](
+                hidden_states,
+                attention_mask=attention_mask,
+                **kwargs,
+            )
+        return BaseModelOutputWithPastAndCrossAttentions(
+            last_hidden_state=hidden_states,
+        )
+
 
 
