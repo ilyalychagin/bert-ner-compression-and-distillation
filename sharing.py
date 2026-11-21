@@ -38,7 +38,7 @@ def main():
     dataset = get_tokenized_dataset(tokenizer)
 
     shared_model_config = BertConfig(
-        num_hidden_layers=1,
+        num_hidden_layers=cfg.num_hidden_layers_student,
         hidden_size=cfg.hidden_size_student,
         intermediate_size=cfg.intermediate_size_student,
         num_attention_heads=cfg.num_attention_heads_student,
@@ -48,12 +48,27 @@ def main():
     )
     shared_model_config.factor_dim = cfg.factor_dim
     shared_model_config.num_shared_steps = cfg.num_shared_steps
+    shared_model_config.lora_adaptation = getattr(cfg, "lora_adaptation", False)
+    if shared_model_config.lora_adaptation:
+        shared_model_config.lora_rank = cfg.lora_rank
+
+    init_from_teacher = getattr(cfg, "init_from_teacher", False)
+    model_teacher = None
+    if cfg.distill or init_from_teacher:
+        model_teacher = AutoModelForTokenClassification.from_pretrained(cfg.checkpoint_teacher_dir)
+
     shared_model = FactorizedBertForTokenClassification(shared_model_config)
-    shared_model.bert.encoder = SharedBertEncoder(shared_model_config)
+    if init_from_teacher:
+        factorized_teacher = FactorizedBertForTokenClassification.from_teacher(model_teacher, cfg.factor_dim)
+        shared_model.bert.embeddings.load_state_dict(factorized_teacher.bert.embeddings.state_dict())
+        shared_model.classifier.load_state_dict(factorized_teacher.classifier.state_dict())
+        del factorized_teacher
+        shared_model.bert.encoder = SharedBertEncoder.from_teacher(model_teacher, shared_model_config)
+    else:
+        shared_model.bert.encoder = SharedBertEncoder(shared_model_config)
     shared_model.to(device)
 
     if cfg.distill:
-        model_teacher = AutoModelForTokenClassification.from_pretrained(cfg.checkpoint_teacher_dir)
         model_teacher.to(device).eval()
     else:
         model_teacher = None
