@@ -6,7 +6,7 @@ from runpy import run_path
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoModelForTokenClassification
-from model.model import FactorizedBertForTokenClassification
+from model.factorization_emb import FactorizedBertForTokenClassification
 
 from dataset.collate import collate
 from dataset.dataset import get_tokenized_dataset
