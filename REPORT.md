@@ -14,7 +14,6 @@
 ├── distillation.py                          # Дистилляция по логитам
 ├── sharing.py                               # Шеринг весов и вариант с LoRA
 ├── distillation_layers.py                   # Дистилляция промежуточных слоёв
-├── layer_distillation.py                    # Пустой файл
 ├── .gitignore
 ├── configs/                                 # Конфигурации экспериментов
 │   └── ...
@@ -179,9 +178,9 @@ $\text{scores} = \frac{Q K^T}{\sqrt{d}}$
 
 В итоговый лосс добавляются MSE по выходам блоков и по скорам внимания. Слои ученика с 1-го по 6-й сопоставляются со слоями учителя 2, 4, 6, 8, 10 и 12. Для слоя $i$ обозначим выход блока через $H_i$, а матрицу скоров внимания через $S_i$. MSE по выходам учитывает токены без паддинга, MSE по скорам — пары таких токенов.
 
-$\text{attn\_loss} = \sum_{i=1}^{6} \text{MSE}(S_i^{\mathrm{student}}, S_{2i}^{\mathrm{teacher}})$
+$L_{\mathrm{attn}} = \sum_{i=1}^{6} \text{MSE}(S_i^{\mathrm{student}}, S_{2i}^{\mathrm{teacher}})$
 
-$\text{hidden\_loss} = \sum_{i=1}^{6} \text{MSE}(H_i^{\mathrm{student}} W_h, H_{2i}^{\mathrm{teacher}})$
+$L_{\mathrm{hidden}} = \sum_{i=1}^{6} \text{MSE}(H_i^{\mathrm{student}} W_h, H_{2i}^{\mathrm{teacher}})$
 
 Стоит заметить, что для hidden_loss также добавляется проекционная обучаемая матрица $W_h$, чтобы привести размерность выходов ученика к размерности учителя.
 
